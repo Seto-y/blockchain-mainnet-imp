@@ -1,0 +1,58 @@
+name: Deploy Bitcoin Map
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # Runs every day at midnight UTC
+  workflow_dispatch:     
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Crawler & Update Data
+        run: |
+          # 1. Run the crawler (using the root main.py)
+          python3 main.py --max-nodes 500 --create-heatmap
+          
+          # 2. Update the JSON file (This updates frontend/bitcoin_nodes.json)
+          python3 -m backend.update_json
+
+      - name: Commit Updated Data (Optional)
+        # This saves the latest JSON back to your code repository
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add frontend/bitcoin_nodes.json
+          # Only commit if there are changes
+          git commit -m "Update node data" || exit 0
+          git push
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # IMPORTANT: We only deploy the 'frontend' folder!
+          path: 'frontend'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
