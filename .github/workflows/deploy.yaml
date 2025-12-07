@@ -3,7 +3,7 @@ name: Deploy Bitcoin Map
 on:
   schedule:
     - cron: '0 0 * * *'   # Runs every day at midnight UTC
-  workflow_dispatch:     
+  workflow_dispatch:      # Allows you to trigger it manually
 
 permissions:
   contents: write
@@ -28,7 +28,9 @@ jobs:
 
       - name: Run Crawler & Update Data
         run: |
-          # 1. Run the crawler (using the root main.py)
+          # 1. Run the crawler 
+          # We set a limit to prevent timeouts, but since we save the DB, 
+          # this will add to the existing count every time.
           python3 main.py --max-nodes 500 --create-heatmap
           
           # 2. Update the JSON file (This updates frontend/bitcoin_nodes.json)
@@ -39,13 +41,15 @@ jobs:
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           
-          # 1. Add the JSON (for the frontend)
+          # 1. Add the JSON (for the frontend website)
           git add frontend/bitcoin_nodes.json
           
-          # 2. Add the Database (so the crawler remembers nodes next time)
-          git add backend/bitcoin_nodes.db
+          # 2. FORCE add the Database (so the crawler remembers nodes next time)
+          # We use -f because your .gitignore is likely blocking .db files
+          git add -f backend/bitcoin_nodes.db
           
           # 3. Commit and Push
+          # The '|| exit 0' ensures the job doesn't fail if there are no new nodes found
           git commit -m "Update node data and database" || exit 0
           git push
 
@@ -55,7 +59,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # IMPORTANT: We only deploy the 'frontend' folder!
+          # IMPORTANT: We only deploy the 'frontend' folder as the website!
           path: 'frontend'
 
       - name: Deploy to GitHub Pages
