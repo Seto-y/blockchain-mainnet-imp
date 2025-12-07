@@ -1,57 +1,31 @@
-name: Deploy Bitcoin Map
+name: Deploy Static Map
 
 on:
-  schedule:
-    - cron: '0 0 * * *'   # Runs every day at midnight UTC
-  workflow_dispatch:      # Allows you to trigger it manually
+  # 1. Update the website immediately when you push code or data
+  push:
+    branches: ["main"]
+
+  # 2. Allow manual trigger (optional)
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Run Crawler & Update Data
-        run: |
-          # 1. Run the crawler 
-          # We set a limit to prevent timeouts, but since we save the DB, 
-          # this will add to the existing count every time.
-          python3 main.py --max-nodes 500 --create-heatmap
-          
-          # 2. Update the JSON file (This updates frontend/bitcoin_nodes.json)
-          python3 -m backend.update_json
-
-      - name: Commit Updated Data
-        run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-          
-          # 1. Add the JSON (for the frontend website)
-          git add frontend/bitcoin_nodes.json
-          
-          # 2. FORCE add the Database (so the crawler remembers nodes next time)
-          # We use -f because your .gitignore is likely blocking .db files
-          git add -f backend/bitcoin_nodes.db
-          
-          # 3. Commit and Push
-          # The '|| exit 0' ensures the job doesn't fail if there are no new nodes found
-          git commit -m "Update node data and database" || exit 0
-          git push
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -59,7 +33,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # IMPORTANT: We only deploy the 'frontend' folder as the website!
+          # We deploy the frontend folder directly
           path: 'frontend'
 
       - name: Deploy to GitHub Pages
